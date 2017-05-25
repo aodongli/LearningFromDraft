@@ -50,7 +50,7 @@ class Seq2SeqModel(object):
       http://arxiv.org/abs/1412.2007
     """
 
-    def __init__(self, source_vocab_size, target_vocab_size, buckets,
+    def __init__(self, source_vocab_size_1, source_vocab_size_2, target_vocab_size, buckets,
                  # size, #annotated by yfeng
                  hidden_edim, hidden_units,  # added by yfeng
                  num_layers, max_gradient_norm, batch_size, learning_rate,
@@ -82,7 +82,8 @@ class Seq2SeqModel(object):
           num_samples: number of samples for sampled softmax.
           forward_only: if set, we do not construct the backward pass in the model.
         """
-        self.source_vocab_size = source_vocab_size
+        self.source_vocab_size_1 = source_vocab_size_1
+        self.source_vocab_size_2 = source_vocab_size_2
         self.target_vocab_size = target_vocab_size
         self.buckets = buckets
         self.batch_size = batch_size
@@ -131,11 +132,13 @@ class Seq2SeqModel(object):
         cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=0.8, seed=SEED)
 
         # The seq2seq function: we use embedding for the input and attention.
-        def seq2seq_f(encoder_inputs, encoder_mask, decoder_inputs, do_decode):
+        def seq2seq_f(encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs, do_decode):
             # return tf.nn.seq2seq.embedding_attention_seq2seq( #annnotated by yfeng
             return seq2seq_fy.embedding_attention_seq2seq(  # added by yfeng
-                    encoder_inputs, encoder_mask, decoder_inputs, cell,
-                    num_encoder_symbols=source_vocab_size,
+                    encoder_inputs_1, encoder_mask_1, encoder_inputs_2, encoder_mask_2,
+                    decoder_inputs, cell,
+                    num_encoder_symbols_1=source_vocab_size_1,
+                    num_encoder_symbols_2=source_vocab_size_2,
                     num_decoder_symbols=target_vocab_size,
                     # embedding_size=size,  #annotated by yfeng
                     embedding_size=hidden_edim,  # added by yfeng
@@ -144,20 +147,27 @@ class Seq2SeqModel(object):
                     feed_previous=do_decode)
 
         # Feeds for inputs.
-        self.encoder_inputs = []
+        self.encoder_inputs_1 = []
+        self.encoder_inputs_2 = []
         self.decoder_inputs = []
         self.target_weights = []
         for i in xrange(buckets[-1][0]):  # Last bucket is the biggest one.
-            self.encoder_inputs.append(tf.placeholder(tf.int32, shape=[None],
-                                                      name="encoder{0}".format(i)))
+            self.encoder_inputs_1.append(tf.placeholder(tf.int32, shape=[None],
+                                                      name="encoder{0}_1".format(i)))
+
+        for i in xrange(buckets[-1][0]):  # Last bucket is the biggest one.
+            self.encoder_inputs_2.append(tf.placeholder(tf.int32, shape=[None],
+                                                      name="encoder{0}_2".format(i)))
 
         for i in xrange(buckets[-1][1] + 1):
             self.decoder_inputs.append(tf.placeholder(tf.int32, shape=[None],
                                                       name="decoder{0}".format(i)))
             self.target_weights.append(tf.placeholder(tf.float32, shape=[None],
                                                       name="weight{0}".format(i)))
-        self.encoder_mask = tf.placeholder(tf.int32, shape=[None, None],
-                                           name="encoder_mask")
+        self.encoder_mask_1 = tf.placeholder(tf.int32, shape=[None, None],
+                                           name="encoder_mask_1")
+        self.encoder_mask_2 = tf.placeholder(tf.int32, shape=[None, None],
+                                           name="encoder_mask_2")
 
         # Our targets are decoder inputs shifted by one.
         targets = [self.decoder_inputs[i + 1]
@@ -167,8 +177,10 @@ class Seq2SeqModel(object):
         if forward_only:
             # self.outputs, self.losses = tf.nn.seq2seq.model_with_buckets( #annotated by yfeng
             self.outputs, self.losses, self.symbols = seq2seq_fy.model_with_buckets(  # added by yfeng and shiyue
-                    self.encoder_inputs, self.encoder_mask, self.decoder_inputs, targets,
-                    self.target_weights, buckets, lambda x, y, z: seq2seq_f(x, y, z, True),
+                    self.encoder_inputs_1, self.encoder_mask_1,
+                    self.encoder_inputs_2, self.encoder_mask_2,
+                    self.decoder_inputs, targets,
+                    self.target_weights, buckets, lambda x1, x2, y1, y2, z: seq2seq_f(x1, x2, y1, y2, z, True),
                     softmax_loss_function=softmax_loss_function)
             # If we use output projection, we need to project outputs for decoding.
             # annotated by shiyue, when using beam search, no need to do decoding projection
@@ -182,9 +194,11 @@ class Seq2SeqModel(object):
         else:
             # self.outputs, self.losses = tf.nn.seq2seq.model_with_buckets(  #annotated by yfeng
             self.outputs, self.losses, self.symbols = seq2seq_fy.model_with_buckets(  # added by yfeng and shiyue
-                    self.encoder_inputs, self.encoder_mask, self.decoder_inputs, targets,
+                    self.encoder_inputs_1, self.encoder_mask_1,
+                    self.encoder_inputs_2, self.encoder_mask_2,
+                    self.decoder_inputs, targets,
                     self.target_weights, buckets,
-                    lambda x, y, z: seq2seq_f(x, y, z, False),
+                    lambda x1, x2, y1, y2, z: seq2seq_f(x1, x2, y1, y2, z, False),
                     softmax_loss_function=softmax_loss_function)
 
         # Gradients and SGD update operation for training the model.
@@ -213,7 +227,7 @@ class Seq2SeqModel(object):
         self.saver = tf.train.Saver(tf.all_variables(), max_to_keep=1000,
                                     keep_checkpoint_every_n_hours=6)  # added by yfeng
 
-    def step(self, session, encoder_inputs, encoder_mask, decoder_inputs, target_weights,
+    def step(self, session, encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs, target_weights,
              bucket_id, forward_only):
         """Run a step of the model feeding the given inputs.
 
@@ -234,10 +248,13 @@ class Seq2SeqModel(object):
             target_weights disagrees with bucket size for the specified bucket_id.
         """
         # Check if the sizes match.
-        encoder_size, decoder_size = self.buckets[bucket_id]
-        if len(encoder_inputs) != encoder_size:
+        encoder_size_1, encoder_size_2, decoder_size = self.buckets[bucket_id]
+        if len(encoder_inputs_1) != encoder_size_1:
             raise ValueError("Encoder length must be equal to the one in bucket,"
-                             " %d != %d." % (len(encoder_inputs), encoder_size))
+                             " %d != %d." % (len(encoder_inputs_1), encoder_size_1))
+        if len(encoder_inputs_2) != encoder_size_2:
+            raise ValueError("Encoder length must be equal to the one in bucket,"
+                             " %d != %d." % (len(encoder_inputs_2), encoder_size_2))
         if len(decoder_inputs) != decoder_size:
             raise ValueError("Decoder length must be equal to the one in bucket,"
                              " %d != %d." % (len(decoder_inputs), decoder_size))
@@ -247,12 +264,15 @@ class Seq2SeqModel(object):
 
         # Input feed: encoder inputs, decoder inputs, target_weights, as provided.
         input_feed = {}
-        for l in xrange(encoder_size):
-            input_feed[self.encoder_inputs[l].name] = encoder_inputs[l]
+        for l in xrange(encoder_size_1):
+            input_feed[self.encoder_inputs_1[l].name] = encoder_inputs_1[l]
+        for l in xrange(encoder_size_2):
+            input_feed[self.encoder_inputs_2[l].name] = encoder_inputs_2[l]
         for l in xrange(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
-        input_feed[self.encoder_mask.name] = encoder_mask
+        input_feed[self.encoder_mask_1.name] = encoder_mask_1
+        input_feed[self.encoder_mask_2.name] = encoder_mask_2
 
         # Since our targets are decoder inputs shifted by one, we need one more.
         last_target = self.decoder_inputs[decoder_size].name
@@ -295,19 +315,22 @@ class Seq2SeqModel(object):
           The triple (encoder_inputs, decoder_inputs, target_weights) for
           the constructed batch that has the proper format to call step(...) later.
         """
-        encoder_size, decoder_size = self.buckets[bucket_id]
-        encoder_inputs, decoder_inputs = [], []
-        encoder_mask = []
+        encoder_size_1, encoder_size_2, decoder_size = self.buckets[bucket_id]
+        encoder_inputs_1, encoder_inputs_2, decoder_inputs = [], [], []
+        encoder_mask_1, encoder_mask_2 = [], []
 
         # Get a random batch of encoder and decoder inputs from data,
         # pad them if needed, reverse encoder inputs and add GO to decoder.
         for _ in xrange(self.batch_size):
-            encoder_input, decoder_input = random.choice(data[bucket_id])
+            encoder_input_1, encoder_input_2, decoder_input = random.choice(data[bucket_id])
 
             # Encoder inputs are padded and then reversed.
-            encoder_pad = [data_utils.PAD_ID] * (encoder_size - len(encoder_input))
-            encoder_inputs.append(list(encoder_input + encoder_pad))
-            encoder_mask.append([1] * len(encoder_input) + [0] * (encoder_size - len(encoder_input)))
+            encoder_pad_1 = [data_utils.PAD_ID] * (encoder_size_1 - len(encoder_input_1))
+            encoder_pad_2 = [data_utils.PAD_ID] * (encoder_size_2 - len(encoder_input_2))
+            encoder_inputs_1.append(list(encoder_input_1 + encoder_pad_1))
+            encoder_inputs_2.append(list(encoder_input_2 + encoder_pad_2))
+            encoder_mask_1.append([1] * len(encoder_input_1) + [0] * (encoder_size_1 - len(encoder_input_1)))
+            encoder_mask_2.append([1] * len(encoder_input_2) + [0] * (encoder_size_2 - len(encoder_input_2)))
 
             # Decoder inputs get an extra "GO" symbol, and are padded then.
             decoder_pad_size = decoder_size - len(decoder_input) - 1
@@ -315,11 +338,15 @@ class Seq2SeqModel(object):
                                   [data_utils.PAD_ID] * decoder_pad_size)
 
         # Now we create batch-major vectors from the data selected above.
-        batch_encoder_inputs, batch_decoder_inputs, batch_weights = [], [], []
+        batch_encoder_inputs_1, batch_encoder_inputs_2, batch_decoder_inputs, batch_weights = [], [], [], []
         # Batch encoder inputs are just re-indexed encoder_inputs.
-        for length_idx in xrange(encoder_size):
-            batch_encoder_inputs.append(
-                    np.array([encoder_inputs[batch_idx][length_idx]
+        for length_idx in xrange(encoder_size_1):
+            batch_encoder_inputs_1.append(
+                    np.array([encoder_inputs_1[batch_idx][length_idx]
+                              for batch_idx in xrange(self.batch_size)], dtype=np.int32))
+            for length_idx in xrange(encoder_size_2):
+            batch_encoder_inputs_2.append(
+                    np.array([encoder_inputs_2[batch_idx][length_idx]
                               for batch_idx in xrange(self.batch_size)], dtype=np.int32))
 
         # Batch decoder inputs are re-indexed decoder_inputs, we create weights.
@@ -338,4 +365,4 @@ class Seq2SeqModel(object):
                 if length_idx == decoder_size - 1 or target == data_utils.PAD_ID:
                     batch_weight[batch_idx] = 0.0
             batch_weights.append(batch_weight)
-        return batch_encoder_inputs, encoder_mask, batch_decoder_inputs, batch_weights
+        return batch_encoder_inputs_1, batch_encoder_inputs_2, encoder_mask_1, encoder_mask_2, batch_decoder_inputs, batch_weights
