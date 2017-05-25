@@ -246,7 +246,7 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
 
-def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size, tokenizer=None):
+def prepare_wmt_data(data_dir, en_vocabulary_size_1, en_vocabulary_size_2, fr_vocabulary_size, tokenizer=None):
     """Get WMT data into data_dir, create vocabularies and tokenize data.
 
     Args:
@@ -273,25 +273,31 @@ def prepare_wmt_data(data_dir, en_vocabulary_size, fr_vocabulary_size, tokenizer
 
     # Create vocabularies of the appropriate sizes.
     fr_vocab_path = os.path.join(data_dir, "vocab%d.fr" % fr_vocabulary_size)
-    en_vocab_path = os.path.join(data_dir, "vocab%d.en" % en_vocabulary_size)
+    en_vocab_path_1 = os.path.join(data_dir, "vocab%d.en_1" % en_vocabulary_size_1)
+    en_vocab_path_2 = os.path.join(data_dir, "vocab%d.en_2" % en_vocabulary_size_2)
     create_vocabulary(fr_vocab_path, train_path + ".fr", fr_vocabulary_size, tokenizer)
-    create_vocabulary(en_vocab_path, train_path + ".en", en_vocabulary_size, tokenizer)
+    create_vocabulary(en_vocab_path_1, train_path + ".en_1", en_vocabulary_size_1, tokenizer)
+    create_vocabulary(en_vocab_path_2, train_path + ".en_2", en_vocabulary_size_2, tokenizer)
 
     # Create token ids for the training data.
     fr_train_ids_path = train_path + (".ids%d.fr" % fr_vocabulary_size)
-    en_train_ids_path = train_path + (".ids%d.en" % en_vocabulary_size)
+    en_train_ids_path_1 = train_path + (".ids%d.en_1" % en_vocabulary_size_1)
+    en_train_ids_path_2 = train_path + (".ids%d.en_2" % en_vocabulary_size_2)
     data_to_token_ids(train_path + ".fr", fr_train_ids_path, fr_vocab_path, tokenizer)
-    data_to_token_ids(train_path + ".en", en_train_ids_path, en_vocab_path, tokenizer)
+    data_to_token_ids(train_path + ".en_1", en_train_ids_path_1, en_vocab_path_1, tokenizer)
+    data_to_token_ids(train_path + ".en_2", en_train_ids_path_2, en_vocab_path_2, tokenizer)
 
     # Create token ids for the development data.
     fr_dev_ids_path = dev_path + (".ids%d.fr" % fr_vocabulary_size)
-    en_dev_ids_path = dev_path + (".ids%d.en" % en_vocabulary_size)
+    en_dev_ids_path_1 = dev_path + (".ids%d.en_1" % en_vocabulary_size_1)
+    en_dev_ids_path_2 = dev_path + (".ids%d.en_2" % en_vocabulary_size_2)
     data_to_token_ids(dev_path + ".fr", fr_dev_ids_path, fr_vocab_path, tokenizer)
-    data_to_token_ids(dev_path + ".en", en_dev_ids_path, en_vocab_path, tokenizer)
+    data_to_token_ids(dev_path + ".en_1", en_dev_ids_path_1, en_vocab_path_1, tokenizer)
+    data_to_token_ids(dev_path + ".en_2", en_dev_ids_path_2, en_vocab_path_2, tokenizer)
 
-    return (en_train_ids_path, fr_train_ids_path,
-            en_dev_ids_path, fr_dev_ids_path,
-            en_vocab_path, fr_vocab_path)
+    return (en_train_ids_path_1, en_train_ids_path_2, fr_train_ids_path,
+            en_dev_ids_path_1, en_dev_ids_path_2, fr_dev_ids_path,
+            en_vocab_path_1, en_vocab_path_2, fr_vocab_path)
 
 
 if __name__ == '__main__':
