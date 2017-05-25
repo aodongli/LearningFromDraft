@@ -690,7 +690,7 @@ def sequence_loss(logits, targets, weights,
             return cost
 
 
-def model_with_buckets(encoder_inputs, encoder_mask, decoder_inputs, targets, weights,
+def model_with_buckets(encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs, targets, weights,
                        buckets, seq2seq, softmax_loss_function=None,
                        per_example_loss=False, name=None):
     """Create a sequence-to-sequence model with support for bucketing.
@@ -725,17 +725,20 @@ def model_with_buckets(encoder_inputs, encoder_mask, decoder_inputs, targets, we
       ValueError: If length of encoder_inputsut, targets, or weights is smaller
         than the largest (last) bucket.
     """
-    if len(encoder_inputs) < buckets[-1][0]:
+    if len(encoder_inputs_1) < buckets[-1][0]:
         raise ValueError("Length of encoder_inputs (%d) must be at least that of la"
-                         "st bucket (%d)." % (len(encoder_inputs), buckets[-1][0]))
-    if len(targets) < buckets[-1][1]:
+                         "st bucket (%d)." % (len(encoder_inputs_1), buckets[-1][0]))
+    if len(encoder_inputs_2) < buckets[-1][1]:
+        raise ValueError("Length of encoder_inputs (%d) must be at least that of la"
+                         "st bucket (%d)." % (len(encoder_inputs_2), buckets[-1][1]))
+    if len(targets) < buckets[-1][2]:
         raise ValueError("Length of targets (%d) must be at least that of last"
-                         "bucket (%d)." % (len(targets), buckets[-1][1]))
-    if len(weights) < buckets[-1][1]:
+                         "bucket (%d)." % (len(targets), buckets[-1][2]))
+    if len(weights) < buckets[-1][2]:
         raise ValueError("Length of weights (%d) must be at least that of last"
-                         "bucket (%d)." % (len(weights), buckets[-1][1]))
+                         "bucket (%d)." % (len(weights), buckets[-1][2]))
 
-    all_inputs = encoder_inputs + decoder_inputs + targets + weights
+    all_inputs = encoder_inputs_1 + encoder_inputs_2 + decoder_inputs + targets + weights
     losses = []
     outputs = []
     symbols = []  # added by shiyue, to save the output of beam search
@@ -743,8 +746,11 @@ def model_with_buckets(encoder_inputs, encoder_mask, decoder_inputs, targets, we
         for j, bucket in enumerate(buckets):
             with variable_scope.variable_scope(variable_scope.get_variable_scope(),
                                                reuse=True if j > 0 else None):
-                bucket_outputs, _, bucket_symbols = seq2seq(encoder_inputs[:bucket[0]], encoder_mask,
-                                                            decoder_inputs[:bucket[1]])
+                bucket_outputs, _, bucket_symbols = seq2seq(encoder_inputs_1[:bucket[0]],
+                                                            encoder_inputs_2[:bucket[1]],
+                                                            encoder_mask_1,
+                                                            encoder_mask_2,
+                                                            decoder_inputs[:bucket[2]])
                 outputs.append(bucket_outputs)
                 symbols.append(bucket_symbols)  # added by shiyue
                 if per_example_loss:

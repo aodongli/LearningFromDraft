@@ -344,7 +344,7 @@ class Seq2SeqModel(object):
             batch_encoder_inputs_1.append(
                     np.array([encoder_inputs_1[batch_idx][length_idx]
                               for batch_idx in xrange(self.batch_size)], dtype=np.int32))
-            for length_idx in xrange(encoder_size_2):
+        for length_idx in xrange(encoder_size_2):
             batch_encoder_inputs_2.append(
                     np.array([encoder_inputs_2[batch_idx][length_idx]
                               for batch_idx in xrange(self.batch_size)], dtype=np.int32))
