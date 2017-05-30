@@ -56,6 +56,8 @@ class Seq2SeqModel(object):
                  num_layers, max_gradient_norm, batch_size, learning_rate,
                  learning_rate_decay_factor,
                  beam_size,  # added by shiyue
+                 constant_emb_en, # added by al
+                 constant_emb_fr, # added by al
                  use_lstm=False,
                  num_samples=10240, forward_only=False):
         """Create the model.
@@ -143,6 +145,8 @@ class Seq2SeqModel(object):
                     # embedding_size=size,  #annotated by yfeng
                     embedding_size=hidden_edim,  # added by yfeng
                     beam_size=beam_size,  # added by shiyue
+                    constant_emb_en=constant_emb_en, # added by al
+                    constant_emb_fr=constant_emb_fr, # added by al
                     output_projection=output_projection,
                     feed_previous=do_decode)
 

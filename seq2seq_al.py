@@ -84,8 +84,8 @@ SEED = 123
 # TODO(ebrevdo): Remove once _linear is fully deprecated.
 # linear = rnn_cell._linear  # pylint: disable=protected-access
 
-alpha = 2.0/3 # added by al
-beta = 4.0/3 # added by al
+alpha = 1.0 #2.0/3 # added by al
+beta = 1.0 #4.0/3 # added by al
 
 
 linear = rnn_cell._linear2  # pylint: disable=protected-access
@@ -385,6 +385,7 @@ def embedding_attention_decoder(encoder_mask_1, encoder_mask_2, decoder_inputs, 
                                 attention_states_1, attention_states_2,
                                 cell, num_symbols, embedding_size,
                                 beam_size,  # added by shiyue
+                                constant_emb_fr, # added by al
                                 num_heads=1,
                                 output_size=None, output_projection=None,
                                 feed_previous=False,
@@ -443,10 +444,17 @@ def embedding_attention_decoder(encoder_mask_1, encoder_mask_2, decoder_inputs, 
 
     with variable_scope.variable_scope(scope or "embedding_attention_decoder"):
         # sqrt3 = math.sqrt(3)  # Uniform(-sqrt(3), sqrt(3)) has variance=1.
+        '''
         embedding = variable_scope.get_variable("embedding",
                                                 [num_symbols, embedding_size],
                                                 dtype=dtype,  # added by yfeng
                                                 initializer=init_ops.random_normal_initializer(0, 0.01, seed=SEED))
+        '''
+        embedding = variable_scope.get_variable( # added by al
+                "embedding", [num_symbols, embedding_size],
+                dtype=dtype,
+                trainable=False,
+                initializer=init_ops.constant_initializer(constant_emb_fr))  # for constant embedding
 
         loop_function = _extract_argmax_and_embed(
                 embedding,
@@ -468,6 +476,8 @@ def embedding_attention_seq2seq(encoder_inputs_1, encoder_inputs_2, encoder_mask
                                 num_encoder_symbols_1, num_encoder_symbols_2, num_decoder_symbols, # added by al
                                 embedding_size,
                                 beam_size,  # added by shiyue
+                                constant_emb_en, # added by al
+                                constant_emb_fr, # added by al
                                 num_heads=1, output_projection=None,
                                 feed_previous=False, dtype=dtypes.float32,
                                 scope=None,
@@ -531,6 +541,7 @@ def embedding_attention_seq2seq(encoder_inputs_1, encoder_inputs_2, encoder_mask
         """
         # start by yfeng
         # sqrt3 = math.sqrt(3)  # Uniform(-sqrt(3), sqrt(3)) has variance=1.
+        '''
         embedding_1 = variable_scope.get_variable(
                 "embedding_1", [num_encoder_symbols_1, embedding_size],
                 dtype=dtype,
@@ -539,6 +550,18 @@ def embedding_attention_seq2seq(encoder_inputs_1, encoder_inputs_2, encoder_mask
                 "embedding_2", [num_encoder_symbols_2, embedding_size],
                 dtype=dtype,
                 initializer=init_ops.random_normal_initializer(0, 0.01, seed=SEED))  # annotated by yfeng
+        '''
+        embedding_1 = variable_scope.get_variable(
+                "embedding_1", [num_encoder_symbols_1, embedding_size],
+                dtype=dtype,
+                trainable=False,
+                initializer=init_ops.constant_initializer(constant_emb_en))  # for constant embedding
+        embedding_2 = variable_scope.get_variable( # added by al
+                "embedding_2", [num_encoder_symbols_2, embedding_size],
+                dtype=dtype,
+                trainable=False,
+                initializer=init_ops.constant_initializer(constant_emb_fr))  # for constant embedding
+
         # initializer = init_ops.random_normal_initializer(0, 0.01, seed=1.0)) #change from uniform to normal by yfeng
         encoder_lens_1 = math_ops.reduce_sum(encoder_mask_1, [1])
         encoder_lens_2 = math_ops.reduce_sum(encoder_mask_2, [1])
@@ -583,6 +606,7 @@ def embedding_attention_seq2seq(encoder_inputs_1, encoder_inputs_2, encoder_mask
                                                decoder_inputs, encoder_state, attention_states_1, attention_states_2, cell,
                                                num_decoder_symbols, embedding_size,
                                                beam_size=beam_size,  # added by shiyue
+                                               constant_emb_fr=constant_emb_fr, # added by al
                                                num_heads=num_heads,
                                                output_size=output_size, output_projection=output_projection,
                                                feed_previous=feed_previous,
@@ -597,6 +621,7 @@ def embedding_attention_seq2seq(encoder_inputs_1, encoder_inputs_2, encoder_mask
                                                                 decoder_inputs, encoder_state, attention_states_1, attention_states_2, cell,
                                                                 num_decoder_symbols, embedding_size,
                                                                 beam_size=beam_size,  # added by shiyue
+                                                                constant_emb_fr=constant_emb_fr, # added by al
                                                                 num_heads=num_heads,
                                                                 output_size=output_size,
                                                                 output_projection=output_projection,

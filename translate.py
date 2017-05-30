@@ -77,6 +77,9 @@ tf.app.flags.DEFINE_string("model", "ckpt", "the checkpoint model to load")
 # added by shiyue, for beam search
 tf.app.flags.DEFINE_integer("beam_size", 5,
                             "The size of beam search. Do greedy search when set this to 1.")
+# added by al, for constant embedding
+tf.app.flags.DEFINE_string("constant_emb_en_dir", "emb_en", "constant embedding directory")
+tf.app.flags.DEFINE_string("constant_emb_fr_dir", "emb_fr", "constant embedding directory")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -159,12 +162,18 @@ def create_model(session,
                  forward_only,
                  ckpt_file=None):
     """Create translation model and initialize or load parameters in session."""
+    emb_en_file = file(FLAGS.constant_emb_en_dir, "rb")
+    emb_fr_file = file(FLAGS.constant_emb_fr_dir, "rb")
+    constant_emb_en = pkl.load(emb_en_file) # added by al
+    constant_emb_fr = pkl.load(emb_fr_file) # added by al
     model = seq2seq_model.Seq2SeqModel(
             FLAGS.en_vocab_size_1, FLAGS.en_vocab_size_2, FLAGS.fr_vocab_size, _buckets,
             FLAGS.hidden_edim, FLAGS.hidden_units,  # by yfeng
             FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
             FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
             FLAGS.beam_size,  # added by shiyue
+            constant_emb_en=constant_emb_en, # added by al
+            constant_emb_fr=constant_emb_fr, # added by al
             forward_only=forward_only)
     if ckpt_file:
         model_path = os.path.join(FLAGS.train_dir, ckpt_file)
