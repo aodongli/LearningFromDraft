@@ -134,8 +134,8 @@ class Seq2SeqModel(object):
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs, do_decode):
             # return tf.nn.seq2seq.embedding_attention_seq2seq( #annnotated by yfeng
-            return seq2seq_fy.embedding_attention_seq2seq(  # added by yfeng
-                    encoder_inputs_1, encoder_mask_1, encoder_inputs_2, encoder_mask_2,
+            return seq2seq_al.embedding_attention_seq2seq(  # added by yfeng
+                    encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2,
                     decoder_inputs, cell,
                     num_encoder_symbols_1=source_vocab_size_1,
                     num_encoder_symbols_2=source_vocab_size_2,
@@ -155,11 +155,11 @@ class Seq2SeqModel(object):
             self.encoder_inputs_1.append(tf.placeholder(tf.int32, shape=[None],
                                                       name="encoder{0}_1".format(i)))
 
-        for i in xrange(buckets[-1][0]):  # Last bucket is the biggest one.
+        for i in xrange(buckets[-1][1]):  # Last bucket is the biggest one.
             self.encoder_inputs_2.append(tf.placeholder(tf.int32, shape=[None],
                                                       name="encoder{0}_2".format(i)))
 
-        for i in xrange(buckets[-1][1] + 1):
+        for i in xrange(buckets[-1][2] + 1):
             self.decoder_inputs.append(tf.placeholder(tf.int32, shape=[None],
                                                       name="decoder{0}".format(i)))
             self.target_weights.append(tf.placeholder(tf.float32, shape=[None],
@@ -176,9 +176,9 @@ class Seq2SeqModel(object):
         # Training outputs and losses.
         if forward_only:
             # self.outputs, self.losses = tf.nn.seq2seq.model_with_buckets( #annotated by yfeng
-            self.outputs, self.losses, self.symbols = seq2seq_fy.model_with_buckets(  # added by yfeng and shiyue
-                    self.encoder_inputs_1, self.encoder_mask_1,
-                    self.encoder_inputs_2, self.encoder_mask_2,
+            self.outputs, self.losses, self.symbols = seq2seq_al.model_with_buckets(  # added by yfeng and shiyue
+                    self.encoder_inputs_1, self.encoder_inputs_2,
+                    self.encoder_mask_1, self.encoder_mask_2,
                     self.decoder_inputs, targets,
                     self.target_weights, buckets, lambda x1, x2, y1, y2, z: seq2seq_f(x1, x2, y1, y2, z, True),
                     softmax_loss_function=softmax_loss_function)
@@ -193,9 +193,9 @@ class Seq2SeqModel(object):
             # ended by shiyue
         else:
             # self.outputs, self.losses = tf.nn.seq2seq.model_with_buckets(  #annotated by yfeng
-            self.outputs, self.losses, self.symbols = seq2seq_fy.model_with_buckets(  # added by yfeng and shiyue
-                    self.encoder_inputs_1, self.encoder_mask_1,
-                    self.encoder_inputs_2, self.encoder_mask_2,
+            self.outputs, self.losses, self.symbols = seq2seq_al.model_with_buckets(  # added by yfeng and shiyue
+                    self.encoder_inputs_1, self.encoder_inputs_2,
+                    self.encoder_mask_1, self.encoder_mask_2,
                     self.decoder_inputs, targets,
                     self.target_weights, buckets,
                     lambda x1, x2, y1, y2, z: seq2seq_f(x1, x2, y1, y2, z, False),

@@ -59,8 +59,9 @@ tf.app.flags.DEFINE_integer("hidden_units", 500, "Size of hidden units for each 
 tf.app.flags.DEFINE_integer("hidden_edim", 310, "the dimension of word embedding.")
 # end by yfeng
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("en_vocab_size", 15000, "English vocabulary size.")
-tf.app.flags.DEFINE_integer("fr_vocab_size", 10000, "French vocabulary size.")
+tf.app.flags.DEFINE_integer("en_vocab_size_1", 15000, "Pre-trained English vocabulary size.")
+tf.app.flags.DEFINE_integer("en_vocab_size_2", 10000, "Pre-trained English vocabulary size.")
+tf.app.flags.DEFINE_integer("fr_vocab_size", 10000, "English vocabulary size.")
 tf.app.flags.DEFINE_string("data_dir", "../data_iwslt", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "../train_iwslt", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
@@ -86,10 +87,11 @@ tf.set_random_seed(123)
 #_buckets = [(10, 10), (20, 20), (30, 30), (40, 40), (51, 51)]
 
 
-_buckets = [(5, 10), (10, 15), (20, 25), (45, 50)]
+#_buckets = [(5, 10), (10, 15), (20, 25), (45, 50)] # annotated by al
+_buckets = [(5, 10, 10), (10, 15, 15), (20, 25, 25), (45, 50, 50)] # added by al
 
 
-def read_data(source_path, target_path, max_size=None):
+def read_data(source_path_1, source_path_2, target_path, max_size=None):
     """Read data from source and target files and put into buckets.
 
     Args:
@@ -107,24 +109,27 @@ def read_data(source_path, target_path, max_size=None):
         len(target) < _buckets[n][1]; source and target are lists of token-ids.
     """
     data_set = [[] for _ in _buckets]
-    with tf.gfile.GFile(source_path, mode="r") as source_file:
-        with tf.gfile.GFile(target_path, mode="r") as target_file:
-            source, target = source_file.readline(), target_file.readline()
-            counter = 0
-            while source and target and (not max_size or counter < max_size):
-                counter += 1
-                if counter % 100000 == 0:
-                    print("  reading data line %d" % counter)
-                    sys.stdout.flush()
-                source_ids = [int(x) for x in source.split()][:50]
-                target_ids = [int(x) for x in target.split()][:50]
-                source_ids.append(data_utils.EOS_ID)
-                target_ids.append(data_utils.EOS_ID)
-                for bucket_id, (source_size, target_size) in enumerate(_buckets):
-                    if len(source_ids) < source_size and len(target_ids) < target_size:
-                        data_set[bucket_id].append([source_ids, target_ids])
-                        break
-                source, target = source_file.readline(), target_file.readline()
+    with tf.gfile.GFile(source_path_1, mode="r") as source_file_1:
+        with tf.gfile.GFile(source_path_2, mode="r") as source_file_2:
+            with tf.gfile.GFile(target_path, mode="r") as target_file:
+                source_1, source_2, target = source_file_1.readline(), source_file_2.readline(), target_file.readline()
+                counter = 0
+                while source_1 and source_2 and target and (not max_size or counter < max_size):
+                    counter += 1
+                    if counter % 100000 == 0:
+                        print("  reading data line %d" % counter)
+                        sys.stdout.flush()
+                    source_ids_1 = [int(x) for x in source_1.split()][:50]
+                    source_ids_2 = [int(x) for x in source_2.split()][:50]
+                    target_ids = [int(x) for x in target.split()][:50]
+                    source_ids_1.append(data_utils.EOS_ID)
+                    source_ids_2.append(data_utils.EOS_ID)
+                    target_ids.append(data_utils.EOS_ID)
+                    for bucket_id, (source_size_1, source_size_2, target_size) in enumerate(_buckets):
+                        if len(source_ids_1) < source_size_1 and len(source_ids_2) < source_size_2 and len(target_ids) < target_size:
+                            data_set[bucket_id].append([source_ids_1, source_ids_2, target_ids])
+                            break
+                    source_1, source_2, target = source_file_1.readline(), source_file_2.readline(), target_file.readline()
     return data_set
 
 
@@ -155,7 +160,7 @@ def create_model(session,
                  ckpt_file=None):
     """Create translation model and initialize or load parameters in session."""
     model = seq2seq_model.Seq2SeqModel(
-            FLAGS.en_vocab_size, FLAGS.fr_vocab_size, _buckets,
+            FLAGS.en_vocab_size_1, FLAGS.en_vocab_size_2, FLAGS.fr_vocab_size, _buckets,
             FLAGS.hidden_edim, FLAGS.hidden_units,  # by yfeng
             FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
             FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
@@ -187,14 +192,17 @@ def train():
     # Prepare WMT data.
     # print("Preparing WMT data in %s" % FLAGS.data_dir)  #annotated by yfeng
     print("Preparing training and dev data in %s" % FLAGS.data_dir)  # added by yfeng
-    en_train, fr_train, en_dev, fr_dev, en_vocab_path, fr_vocab_path = data_utils.prepare_wmt_data(
-            FLAGS.data_dir, FLAGS.en_vocab_size, FLAGS.fr_vocab_size)
+    en_train_1, en_train_2, fr_train, en_dev_1, en_dev_2, fr_dev, en_vocab_path_1, en_vocab_path_2, fr_vocab_path = data_utils.prepare_wmt_data(
+            FLAGS.data_dir, FLAGS.en_vocab_size_1, FLAGS.en_vocab_size_2, FLAGS.fr_vocab_size)
 
-    en_vocab, rev_en_vocab = data_utils.initialize_vocabulary(en_vocab_path)
+    en_vocab_1, rev_en_vocab_1 = data_utils.initialize_vocabulary(en_vocab_path_1)
+    en_vocab_2, rev_en_vocab_2 = data_utils.initialize_vocabulary(en_vocab_path_2)
     fr_vocab, rev_fr_vocab = data_utils.initialize_vocabulary(fr_vocab_path)
 
-    if FLAGS.en_vocab_size > len(en_vocab):
-        FLAGS.en_vocab_size = len(en_vocab)
+    if FLAGS.en_vocab_size_1 > len(en_vocab_1):
+        FLAGS.en_vocab_size_1 = len(en_vocab_1)
+    if FLAGS.en_vocab_size_2 > len(en_vocab_2):
+        FLAGS.en_vocab_size_2 = len(en_vocab_2)
     if FLAGS.fr_vocab_size > len(fr_vocab):
         FLAGS.fr_vocab_size = len(fr_vocab)
 
@@ -208,8 +216,8 @@ def train():
         # Read data into buckets and compute their sizes.
         print("Reading development and training data (limit: %d)."
               % FLAGS.max_train_data_size)
-        dev_set = read_data(en_dev, fr_dev)
-        train_set = read_data(en_train, fr_train, FLAGS.max_train_data_size)
+        dev_set = read_data(en_dev_1, en_dev_2, fr_dev)
+        train_set = read_data(en_train_1, en_train_2, fr_train, FLAGS.max_train_data_size)
         train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
         train_total_size = float(sum(train_bucket_sizes))
 
@@ -232,10 +240,12 @@ def train():
 
             # Get a batch and make a step.
             start_time = time.time()
-            encoder_inputs, encoder_mask, decoder_inputs, target_weights = model.get_batch(
+            encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs, target_weights = model.get_batch(
                     train_set, bucket_id)
 
-            _, step_loss, _ = model.step(sess, encoder_inputs, encoder_mask, decoder_inputs,
+            _, step_loss, _ = model.step(sess, encoder_inputs_1, encoder_inputs_2,
+                                         encoder_mask_1, encoder_mask_2,
+                                         decoder_inputs,
                                          target_weights, bucket_id, False)
 
             step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
@@ -263,9 +273,9 @@ def train():
                     if len(dev_set[bucket_id]) == 0:
                         print("  eval: empty bucket %d" % (bucket_id))
                         continue
-                    encoder_inputs, encoder_mask, decoder_inputs, target_weights = model.get_batch(
+                    encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs, target_weights = model.get_batch(
                             dev_set, bucket_id)
-                    _, eval_loss, _ = model.step(sess, encoder_inputs, encoder_mask, decoder_inputs,
+                    _, eval_loss, _ = model.step(sess, encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs,
                                                  target_weights, bucket_id, True)
                     eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
                     print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))  # annotated by yfeng
@@ -277,15 +287,20 @@ def decode():
     with tf.Session() as sess:
         #_buckets = [(10, 10), (20, 20), (30, 30), (40, 40), (51, 51), (100, 100)]
         # Load vocabularies.
-        en_vocab_path = os.path.join(FLAGS.data_dir,
-                                     "vocab%d.en" % FLAGS.en_vocab_size)
+        en_vocab_path_1 = os.path.join(FLAGS.data_dir,
+                                     "vocab%d.en_1" % FLAGS.en_vocab_size_1)
+        en_vocab_path_2 = os.path.join(FLAGS.data_dir,
+                                     "vocab%d.en_2" % FLAGS.en_vocab_size_2)
         fr_vocab_path = os.path.join(FLAGS.data_dir,
                                      "vocab%d.fr" % FLAGS.fr_vocab_size)
-        en_vocab, rev_en_vocab = data_utils.initialize_vocabulary(en_vocab_path)
+        en_vocab_1, rev_en_vocab_1 = data_utils.initialize_vocabulary(en_vocab_path_1)
+        en_vocab_2, rev_en_vocab_2 = data_utils.initialize_vocabulary(en_vocab_path_2)
         fr_vocab, rev_fr_vocab = data_utils.initialize_vocabulary(fr_vocab_path)
 
-        if FLAGS.en_vocab_size > len(en_vocab):
-            FLAGS.en_vocab_size = len(en_vocab)
+        if FLAGS.en_vocab_size_1 > len(en_vocab_1):
+            FLAGS.en_vocab_size_1 = len(en_vocab_1)
+        if FLAGS.en_vocab_size_2 > len(en_vocab_2):
+            FLAGS.en_vocab_size_2 = len(en_vocab_2)
         if FLAGS.fr_vocab_size > len(fr_vocab):
             FLAGS.fr_vocab_size = len(fr_vocab)
 
@@ -296,24 +311,28 @@ def decode():
         # Decode from standard input.
         # sys.stdout.write("> ")
         # sys.stdout.flush()
-        sentence = sys.stdin.readline()
-        while sentence:
+        sentence_1 = sys.stdin.readline()
+        sentence_2 = sys.stdin.readline()
+        while sentence_1 and sentence_2:
             # Get token-ids for the input sentence.
-            token_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), en_vocab)
-            if len(token_ids) > _buckets[-1][0]: # Added by al to cut short overlength input
-                token_ids = token_ids[:_buckets[-1][0]]
+            token_ids_1 = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence_1), en_vocab_1)
+            token_ids_2 = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence_2), en_vocab_2)
+            if len(token_ids_1) > _buckets[-1][0]: # Added by al to cut short overlength input
+                token_ids_1 = token_ids_1[:_buckets[-1][0]]
+            if len(token_ids_2) > _buckets[-1][1]: # Added by al to cut short overlength input
+                token_ids_2 = token_ids_2[:_buckets[-1][1]]
             # Which bucket does it belong to?
             bucket_id = [b for b in xrange(len(_buckets))
-                         if _buckets[b][0] > len(token_ids)]
+                         if _buckets[b][0] > len(token_ids_1) and _buckets[b][1] > len(token_ids_2)]
             if bucket_id:
                 bucket_id = min(bucket_id)
             else:
                 bucket_id = len(_buckets) - 1
             # Get a 1-element batch to feed the sentence to the model.
-            encoder_inputs, encoder_mask, decoder_inputs, target_weights = model.get_batch(
-                    {bucket_id: [(token_ids, [])]}, bucket_id)
+            encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs, target_weights = model.get_batch(
+                    {bucket_id: [(token_ids_1, token_ids_2, [])]}, bucket_id)
             # Get output logits for the sentence.
-            _, _, output_logits = model.step(sess, encoder_inputs, encoder_mask, decoder_inputs,
+            _, _, output_logits = model.step(sess, encoder_inputs_1, encoder_inputs_2, encoder_mask_1, encoder_mask_2, decoder_inputs,
                                              target_weights, bucket_id, True)
 
             # This is a greedy decoder - outputs are just argmaxes of output_logits.
@@ -330,7 +349,8 @@ def decode():
             print(" ".join([tf.compat.as_str(rev_fr_vocab[output]) for output in outputs]))
             # print("> ", end="")
             sys.stdout.flush()
-            sentence = sys.stdin.readline()
+            sentence_1 = sys.stdin.readline()
+            sentence_2 = sys.stdin.readline()
 
 
 def self_test():

@@ -84,6 +84,9 @@ SEED = 123
 # TODO(ebrevdo): Remove once _linear is fully deprecated.
 # linear = rnn_cell._linear  # pylint: disable=protected-access
 
+alpha = 2.0/3 # added by al
+beta = 4.0/3 # added by al
+
 
 linear = rnn_cell._linear2  # pylint: disable=protected-access
 
@@ -249,9 +252,9 @@ def attention_decoder(encoder_mask_1, encoder_mask_2, decoder_inputs, initial_st
                                                      [attention_vec_size],
                                                      initializer=init_ops.constant_initializer(0.0)))
 
-        def attention(query, hidden, hidden_features, v, scope=None): # added by al
+        def attention(query, hidden, hidden_features, v, encoder_mask, attn_length, scope=None): # added by al
             with variable_scope.variable_scope(scope or "attention"):
-            """Put attention masks on hidden using hidden_features and query."""
+            # Put attention masks on hidden using hidden_features and query.
 
                 ds = []  # Results of attention reads will be stored here.
                 aa = []
@@ -298,8 +301,7 @@ def attention_decoder(encoder_mask_1, encoder_mask_2, decoder_inputs, initial_st
         # ended by shiyue
         batch_attn_size = array_ops.pack([batch_size, attn_size])
         attns = [] # added by al
-        alpha = 1.0 # added by al
-
+        
         # annotated by al
         # attns = [array_ops.zeros(batch_attn_size, dtype=dtype)
         #          for _ in xrange(num_heads)]
@@ -331,11 +333,16 @@ def attention_decoder(encoder_mask_1, encoder_mask_2, decoder_inputs, initial_st
                 raise ValueError("Could not infer input size from input: %s" % inp.name)
 
             # Run the attention mechanism.
+            attns = []
             if i > 0 or (i == 0 and initial_state_attention):
-                attns_1, aa_1 = attention(state, hidden_1, hidden_features_1, v_1, scope="attention_1")
-                attns_2, aa_2 = attention(state, hidden_2, hidden_features_2, v_2, scope="attention_2")
+                attns_1, aa_1 = attention(state, hidden_1, hidden_features_1, v_1, encoder_mask_1, attn_length_1, scope="attention_1")
+                attns_2, aa_2 = attention(state, hidden_2, hidden_features_2, v_2, encoder_mask_2, attn_length_2, scope="attention_2")
+                for id_head in xrange(num_heads): # added by al
+                    attns.append(alpha * attns_1[id_head] + beta * attns_2[id_head])
+                '''
                 for a1, a2 in zip(attns_1, attns_2): # added by al
                     attns.append(alpha * a1 + a2)
+                '''
                 aligns_1.append(aa_1)
                 aligns_2.append(aa_2)
 
@@ -533,22 +540,25 @@ def embedding_attention_seq2seq(encoder_inputs_1, encoder_inputs_2, encoder_mask
                 dtype=dtype,
                 initializer=init_ops.random_normal_initializer(0, 0.01, seed=SEED))  # annotated by yfeng
         # initializer = init_ops.random_normal_initializer(0, 0.01, seed=1.0)) #change from uniform to normal by yfeng
-        encoder_cell_1 = rnn_cell.EmbeddingWrapper(
-                cell, embedding_classes=num_encoder_symbols_1,
-                embedding_size=embedding_size, embedding=embedding_1)
-        encoder_cell_2 = rnn_cell.EmbeddingWrapper(
-                cell, embedding_classes=num_encoder_symbols_2,
-                embedding_size=embedding_size, embedding=embedding_2)
-
         encoder_lens_1 = math_ops.reduce_sum(encoder_mask_1, [1])
         encoder_lens_2 = math_ops.reduce_sum(encoder_mask_2, [1])
+        
+        with variable_scope.variable_scope("encoder_1"):
+            encoder_cell_1 = rnn_cell.EmbeddingWrapper(
+                    cell, embedding_classes=num_encoder_symbols_1,
+                    embedding_size=embedding_size, embedding=embedding_1)
+            encoder_outputs_1, _, encoder_state_1 = rnn.bidirectional_rnn(
+                    encoder_cell_1, encoder_cell_1, encoder_inputs_1, sequence_length=encoder_lens_1, dtype=dtype)
 
-        encoder_outputs_1, _, encoder_state_1 = rnn.bidirectional_rnn(
-                encoder_cell_1, encoder_cell_1, encoder_inputs_1, sequence_length=encoder_lens_1, dtype=dtype)
-        encoder_outputs_2, _, encoder_state_2 = rnn.bidirectional_rnn(
-                encoder_cell_2, encoder_cell_2, encoder_inputs_2, sequence_length=encoder_lens_2, dtype=dtype)
+        
+        with variable_scope.variable_scope("encoder_2"):
+            encoder_cell_2 = rnn_cell.EmbeddingWrapper(
+                    cell, embedding_classes=num_encoder_symbols_2,
+                    embedding_size=embedding_size, embedding=embedding_2)
+            encoder_outputs_2, _, encoder_state_2 = rnn.bidirectional_rnn(
+                    encoder_cell_2, encoder_cell_2, encoder_inputs_2, sequence_length=encoder_lens_2, dtype=dtype)
 
-        encoder_state = encoder_state_1 # this can be changed
+        encoder_state = alpha * encoder_state_1 + beta * encoder_state_2 # this can be changed
 
         assert encoder_cell_1._embedding is embedding_1
         assert encoder_cell_2._embedding is embedding_2
