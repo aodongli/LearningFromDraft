@@ -3,13 +3,9 @@ Code associated to the paper https://arxiv.org/abs/1710.01789
 ---
 ### Set-up
 
---------
-
 * The system requirement is specified in <a href="https://github.com/CSLT-THU/CSLT_NMT">CSLT NMT Toolkit</a>. Please follow the instruction to set up the environment.
 
 ### Training and testing
-
-----
 
 #### Introduction
 
@@ -60,7 +56,7 @@ cd part2
 python translate.py
 ```
 
-#### Test
+##### Test
 
 1) Similarly, generate a translation draft of your test sentence.
 
