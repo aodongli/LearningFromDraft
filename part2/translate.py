@@ -59,11 +59,11 @@ tf.app.flags.DEFINE_integer("hidden_units", 500, "Size of hidden units for each 
 tf.app.flags.DEFINE_integer("hidden_edim", 310, "the dimension of word embedding.")
 # end by yfeng
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("en_vocab_size_1", 15000, "Pre-trained English vocabulary size.")
-tf.app.flags.DEFINE_integer("en_vocab_size_2", 10000, "Pre-trained English vocabulary size.")
-tf.app.flags.DEFINE_integer("fr_vocab_size", 10000, "English vocabulary size.")
-tf.app.flags.DEFINE_string("data_dir", "../data_iwslt", "Data directory")
-tf.app.flags.DEFINE_string("train_dir", "../train_iwslt", "Training directory.")
+tf.app.flags.DEFINE_integer("src_vocab_size_1", 15000, "Pre-trained English vocabulary size.")
+tf.app.flags.DEFINE_integer("src_vocab_size_2", 10000, "Pre-trained English vocabulary size.")
+tf.app.flags.DEFINE_integer("trg_vocab_size", 10000, "English vocabulary size.")
+tf.app.flags.DEFINE_string("data_dir", "../data", "Data directory")
+tf.app.flags.DEFINE_string("train_dir", "../train", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_integer("steps_per_checkpoint", 250,
@@ -78,8 +78,8 @@ tf.app.flags.DEFINE_string("model", "ckpt", "the checkpoint model to load")
 tf.app.flags.DEFINE_integer("beam_size", 5,
                             "The size of beam search. Do greedy search when set this to 1.")
 # added by al, for constant embedding
-tf.app.flags.DEFINE_string("constant_emb_en_dir", "emb_en", "constant embedding directory")
-tf.app.flags.DEFINE_string("constant_emb_fr_dir", "emb_fr", "constant embedding directory")
+tf.app.flags.DEFINE_string("constant_emb_src_dir", "../emb.src", "constant embedding directory")
+tf.app.flags.DEFINE_string("constant_emb_trg_dir", "../emb.trg", "constant embedding directory")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -141,7 +141,7 @@ def read_data(source_path_1, source_path_2, target_path, max_size=None):
 def create_model(session, forward_only):
   """Create translation model and initialize or load parameters in session."""
   model = seq2seq_model.Seq2SeqModel(
-      FLAGS.en_vocab_size, FLAGS.fr_vocab_size, _buckets,
+      FLAGS.en_vocab_size, FLAGS.trg_vocab_size, _buckets,
       FLAGS.size, FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
       FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
       forward_only=forward_only)
@@ -162,12 +162,12 @@ def create_model(session,
                  forward_only,
                  ckpt_file=None):
     """Create translation model and initialize or load parameters in session."""
-    emb_en_file = file(FLAGS.constant_emb_en_dir, "rb")
-    emb_fr_file = file(FLAGS.constant_emb_fr_dir, "rb")
+    emb_en_file = file(FLAGS.constant_emb_src_dir, "rb")
+    emb_fr_file = file(FLAGS.constant_emb_trg_dir, "rb")
     constant_emb_en = pkl.load(emb_en_file) # added by al
     constant_emb_fr = pkl.load(emb_fr_file) # added by al
     model = seq2seq_model.Seq2SeqModel(
-            FLAGS.en_vocab_size_1, FLAGS.en_vocab_size_2, FLAGS.fr_vocab_size, _buckets,
+            FLAGS.src_vocab_size_1, FLAGS.src_vocab_size_2, FLAGS.trg_vocab_size, _buckets,
             FLAGS.hidden_edim, FLAGS.hidden_units,  # by yfeng
             FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
             FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
@@ -202,18 +202,18 @@ def train():
     # print("Preparing WMT data in %s" % FLAGS.data_dir)  #annotated by yfeng
     print("Preparing training and dev data in %s" % FLAGS.data_dir)  # added by yfeng
     en_train_1, en_train_2, fr_train, en_dev_1, en_dev_2, fr_dev, en_vocab_path_1, en_vocab_path_2, fr_vocab_path = data_utils.prepare_wmt_data(
-            FLAGS.data_dir, FLAGS.en_vocab_size_1, FLAGS.en_vocab_size_2, FLAGS.fr_vocab_size)
+            FLAGS.data_dir, FLAGS.src_vocab_size_1, FLAGS.src_vocab_size_2, FLAGS.trg_vocab_size)
 
     en_vocab_1, rev_en_vocab_1 = data_utils.initialize_vocabulary(en_vocab_path_1)
     en_vocab_2, rev_en_vocab_2 = data_utils.initialize_vocabulary(en_vocab_path_2)
     fr_vocab, rev_fr_vocab = data_utils.initialize_vocabulary(fr_vocab_path)
 
-    if FLAGS.en_vocab_size_1 > len(en_vocab_1):
-        FLAGS.en_vocab_size_1 = len(en_vocab_1)
-    if FLAGS.en_vocab_size_2 > len(en_vocab_2):
-        FLAGS.en_vocab_size_2 = len(en_vocab_2)
-    if FLAGS.fr_vocab_size > len(fr_vocab):
-        FLAGS.fr_vocab_size = len(fr_vocab)
+    if FLAGS.src_vocab_size_1 > len(en_vocab_1):
+        FLAGS.src_vocab_size_1 = len(en_vocab_1)
+    if FLAGS.src_vocab_size_2 > len(en_vocab_2):
+        FLAGS.src_vocab_size_2 = len(en_vocab_2)
+    if FLAGS.trg_vocab_size > len(fr_vocab):
+        FLAGS.trg_vocab_size = len(fr_vocab)
 
     with tf.Session() as sess:
         # Create model.
@@ -297,21 +297,21 @@ def decode():
         #_buckets = [(10, 10), (20, 20), (30, 30), (40, 40), (51, 51), (100, 100)]
         # Load vocabularies.
         en_vocab_path_1 = os.path.join(FLAGS.data_dir,
-                                     "vocab%d.en_1" % FLAGS.en_vocab_size_1)
+                                     "vocab%d.src_1" % FLAGS.src_vocab_size_1)
         en_vocab_path_2 = os.path.join(FLAGS.data_dir,
-                                     "vocab%d.en_2" % FLAGS.en_vocab_size_2)
+                                     "vocab%d.src_2" % FLAGS.src_vocab_size_2)
         fr_vocab_path = os.path.join(FLAGS.data_dir,
-                                     "vocab%d.fr" % FLAGS.fr_vocab_size)
+                                     "vocab%d.trg" % FLAGS.trg_vocab_size)
         en_vocab_1, rev_en_vocab_1 = data_utils.initialize_vocabulary(en_vocab_path_1)
         en_vocab_2, rev_en_vocab_2 = data_utils.initialize_vocabulary(en_vocab_path_2)
         fr_vocab, rev_fr_vocab = data_utils.initialize_vocabulary(fr_vocab_path)
 
-        if FLAGS.en_vocab_size_1 > len(en_vocab_1):
-            FLAGS.en_vocab_size_1 = len(en_vocab_1)
-        if FLAGS.en_vocab_size_2 > len(en_vocab_2):
-            FLAGS.en_vocab_size_2 = len(en_vocab_2)
-        if FLAGS.fr_vocab_size > len(fr_vocab):
-            FLAGS.fr_vocab_size = len(fr_vocab)
+        if FLAGS.src_vocab_size_1 > len(en_vocab_1):
+            FLAGS.src_vocab_size_1 = len(en_vocab_1)
+        if FLAGS.src_vocab_size_2 > len(en_vocab_2):
+            FLAGS.src_vocab_size_2 = len(en_vocab_2)
+        if FLAGS.trg_vocab_size > len(fr_vocab):
+            FLAGS.trg_vocab_size = len(fr_vocab)
 
         # Create model and load parameters.
         model = create_model(sess, True, FLAGS.model)

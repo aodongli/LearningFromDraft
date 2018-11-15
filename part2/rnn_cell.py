@@ -711,7 +711,7 @@ class EmbeddingWrapper(RNNCell):
     """
 
     def __init__(self, cell, embedding_classes, embedding_size,
-                 embedding,  # added by yfeng
+                 embedding, 
                  initializer=None):
         """Create a cell with an added input embedding.
 
@@ -735,7 +735,7 @@ class EmbeddingWrapper(RNNCell):
         self._embedding_classes = embedding_classes
         self._embedding_size = embedding_size
         self._initializer = initializer
-        self._embedding = embedding  # added by yfeng
+        self._embedding = embedding 
 
     @property
     def state_size(self):
@@ -771,10 +771,8 @@ class EmbeddingWrapper(RNNCell):
                     dtype=data_type)
                 """
 
-                # modified by yfeng
                 embedded = embedding_ops.embedding_lookup(
                         self._embedding, array_ops.reshape(inputs, [-1]))
-                # end by yfeng
         return self._cell(embedded, state)
 
 
@@ -938,7 +936,7 @@ def _linear(args, output_size, bias, bias_start=0.0, scope=None):
     return res + bias_term
 
 
-# added by yfeng
+
 def orthogonal_initializer(shape=None, scale=1.0):
     ''' From Lasagne and Keras. Reference: Saxe et al., http://arxiv.org/abs/1312.6120
     '''
@@ -957,7 +955,7 @@ def orthogonal_initializer(shape=None, scale=1.0):
     return _initializer
 
 
-# modified by yfeng to add the initializer
+
 def _linear2(args, output_size, bias, bias_start=0.0, weight_initializer=None, scope=None):
     """Linear map: sum_i(args[i] * W[i]), where W[i] is a variable.
 
@@ -997,7 +995,7 @@ def _linear2(args, output_size, bias, bias_start=0.0, weight_initializer=None, s
     with vs.variable_scope(scope or "Linear"):
         matrix = vs.get_variable(
                 "Matrix", [total_arg_size, output_size], dtype=dtype,
-                initializer=weight_initializer)  # added by yfeng
+                initializer=weight_initializer) 
         if len(args) == 1:
             res = math_ops.matmul(args[0], matrix)
         else:
