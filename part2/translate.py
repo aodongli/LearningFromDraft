@@ -59,9 +59,9 @@ tf.app.flags.DEFINE_integer("hidden_units", 500, "Size of hidden units for each 
 tf.app.flags.DEFINE_integer("hidden_edim", 310, "the dimension of word embedding.")
 # end by yfeng
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("src_vocab_size_1", 15000, "Pre-trained English vocabulary size.")
-tf.app.flags.DEFINE_integer("src_vocab_size_2", 10000, "Pre-trained English vocabulary size.")
-tf.app.flags.DEFINE_integer("trg_vocab_size", 10000, "English vocabulary size.")
+tf.app.flags.DEFINE_integer("src_vocab_size_1", 15000, "Pre-trained source vocabulary size.")
+tf.app.flags.DEFINE_integer("src_vocab_size_2", 10000, "Pre-trained draft vocabulary size.")
+tf.app.flags.DEFINE_integer("trg_vocab_size", 10000, "Target vocabulary size.")
 tf.app.flags.DEFINE_string("data_dir", "../data", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "../train", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
