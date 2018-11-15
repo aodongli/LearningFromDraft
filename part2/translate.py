@@ -63,7 +63,7 @@ tf.app.flags.DEFINE_integer("src_vocab_size_1", 15000, "Pre-trained source vocab
 tf.app.flags.DEFINE_integer("src_vocab_size_2", 10000, "Pre-trained draft vocabulary size.")
 tf.app.flags.DEFINE_integer("trg_vocab_size", 10000, "Target vocabulary size.")
 tf.app.flags.DEFINE_string("data_dir", "../data", "Data directory")
-tf.app.flags.DEFINE_string("train_dir", "../train", "Training directory.")
+tf.app.flags.DEFINE_string("train_dir", "../train_2", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_integer("steps_per_checkpoint", 250,

@@ -60,7 +60,7 @@ tf.app.flags.DEFINE_integer("keep_prob", 0.8, "The keep probability used for dro
 tf.app.flags.DEFINE_integer("src_vocab_size", 15000, "Source vocabulary size.")
 tf.app.flags.DEFINE_integer("trg_vocab_size", 10000, "French vocabulary size.")
 tf.app.flags.DEFINE_string("data_dir", "../data", "Data directory.")
-tf.app.flags.DEFINE_string("train_dir", "../train", "Training directory.")
+tf.app.flags.DEFINE_string("train_dir", "../train_1", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
 tf.app.flags.DEFINE_integer("steps_per_checkpoint", 1000,
